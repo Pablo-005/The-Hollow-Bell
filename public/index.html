@@ -89,12 +89,55 @@ const living=state.players.filter(x=>x.alive&&x.id!==me);
 const sel=()=>{const s=document.createElement('select');s.id='target';s.innerHTML=living.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");return s}
 if(state.phase==="night" && myRole){
   const s=sel();
-  if(myRole.role==="alpha" && !myRole.used?.mark){a.append(s); const b=document.createElement('button');b.textContent="Mark";b.onclick=()=>socket.emit("action",{type:"mark",target:s.value});a.append(b);}
-  if(myRole.faction==="Beasts"{a.append(s); const b=document.createElement('button');b.textContent="Hunt";b.onclick=()=>socket.emit("action",{type:"attack",target:s.value});a.append(b);}
-  if(myRole.role==="constable"{a.append(s); const b=document.createElement('button');b.textContent="Investigate";b.onclick=()=>socket.emit("action",{type:"investigate",target:s.value});a.append(b);}
-  if(myRole.role==="bellkeeper"{a.append(s); const b=document.createElement('button');b.textContent="Listen";b.onclick=()=>socket.emit("action",{type:"listen",target:s.value});a.append(b);}
-  if(myRole.role==="raven"{a.append(s); const inp=document.createElement('input');inp.placeholder="Anonymous whisper";const b=document.createElement('button');b.textContent="Whisper";b.onclick=()=>socket.emit("action",{type:"whisper",target:s.value,message:inp.value});a.append(inp,b);}
-  if(myRole.role==="howler"{const b=document.createElement('button');b.textContent="Howl";b.onclick=()=>socket.emit("action",{type:"howl"});a.append(b);}
+
+  if(myRole.role==="alpha" && !myRole.used?.mark){
+    a.append(s);
+    const b=document.createElement('button');
+    b.textContent="Mark";
+    b.onclick=()=>socket.emit("action",{type:"mark",target:s.value});
+    a.append(b);
+  }
+
+  if(myRole.faction==="Beasts"){
+    a.append(s);
+    const b=document.createElement('button');
+    b.textContent="Hunt";
+    b.onclick=()=>socket.emit("action",{type:"attack",target:s.value});
+    a.append(b);
+  }
+
+  if(myRole.role==="constable"){
+    a.append(s);
+    const b=document.createElement('button');
+    b.textContent="Investigate";
+    b.onclick=()=>socket.emit("action",{type:"investigate",target:s.value});
+    a.append(b);
+  }
+
+  if(myRole.role==="bellkeeper"){
+    a.append(s);
+    const b=document.createElement('button');
+    b.textContent="Listen";
+    b.onclick=()=>socket.emit("action",{type:"listen",target:s.value});
+    a.append(b);
+  }
+
+  if(myRole.role==="raven"){
+    a.append(s);
+    const inp=document.createElement('input');
+    inp.placeholder="Anonymous whisper";
+    const b=document.createElement('button');
+    b.textContent="Whisper";
+    b.onclick=()=>socket.emit("action",{type:"whisper",target:s.value,message:inp.value});
+    a.append(inp,b);
+  }
+
+  if(myRole.role==="howler"){
+    const b=document.createElement('button');
+    b.textContent="Howl";
+    b.onclick=()=>socket.emit("action",{type:"howl"});
+    a.append(b);
+  }
 }
 if(state.phase==="vote"){
 const s=sel();a.append("Vote to execute: ",s);const b=document.createElement('button');b.textContent="Cast Vote";b.onclick=()=>socket.emit("vote",{target:s.value});a.append(b);
