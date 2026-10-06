@@ -1,0 +1,105 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Hollow Bell</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root{--bg:#0d0c0b;--panel:#181512;--paper:#e9dcc2;--muted:#a99b82;--red:#8e302c;--gold:#c8a66a;--line:#3a3027}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#241c15 0,#0d0c0b 55%);color:var(--paper);font:15px Georgia,serif;min-height:100vh}
+header{padding:22px 5vw;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;letter-spacing:3px;font-size:28px}.subtitle{color:var(--muted);font-style:italic}
+main{max-width:1100px;margin:24px auto;padding:0 18px}.grid{display:grid;grid-template-columns:1.4fr .8fr;gap:18px}
+.card{background:linear-gradient(145deg,#1c1814,#12100e);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:0 10px 30px #0008}
+button,input,select,textarea{font:inherit;border-radius:8px;border:1px solid #5b4b39;background:#100e0c;color:var(--paper);padding:10px}
+button{cursor:pointer;background:#392d20;border-color:#7c6240}button:hover{background:#4a3928}button.primary{background:#7d2927}.row{display:flex;gap:8px;flex-wrap:wrap}.hidden{display:none!important}
+#timer{font-size:32px;color:var(--gold)}.phase{color:var(--gold);letter-spacing:2px}.room{font-size:24px;letter-spacing:6px}
+.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}.player{padding:10px;border:1px solid var(--line);border-radius:8px;background:#14110f}.dead{opacity:.45;text-decoration:line-through}
+.log{max-height:220px;overflow:auto}.log p{margin:7px 0;color:#cfc1a6}.evidence{color:#d8c08b}.chat{height:220px;overflow:auto;background:#0b0a09;padding:10px;border-radius:8px}.chat p{margin:6px 0}.small{font-size:13px;color:var(--muted)}
+.badge{display:inline-block;padding:4px 8px;border:1px solid #5c4934;border-radius:999px;margin:2px}
+</style>
+</head>
+<body>
+<header><div><h1>THE HOLLOW BELL</h1><div class="subtitle">Everyone is lying. Find the wolves.</div></div><div id="roomTop"></div></header>
+<main>
+<section id="landing" class="card">
+<h2>Enter the Settlement</h2>
+<p class="small">Multiplayer social deduction for 2–12 players. Each person joins from their own device using the same room code.</p>
+<div class="row"><input id="name" maxlength="18" placeholder="Your name"><button class="primary" onclick="createRoom()">Create Room</button><input id="joinCode" maxlength="6" placeholder="ROOM CODE"><button onclick="joinRoom()">Join Room</button></div>
+<div id="error" class="small"></div>
+</section>
+
+<section id="game" class="hidden">
+<div class="grid">
+<div>
+<div class="card">
+<div class="phase" id="phase"></div><div id="timer"></div><h2 id="title"></h2>
+<div id="role"></div><div id="objective"></div>
+<div id="actions" class="row"></div>
+</div>
+<div class="card"><h3>Villagers</h3><div id="players" class="players"></div></div>
+<div class="card"><h3>Case Board — Evidence</h3><div id="evidence"></div></div>
+<div class="card"><h3>Village Record</h3><div id="log" class="log"></div></div>
+</div>
+<div>
+<div class="card"><h3>Room</h3><div class="room" id="roomCode"></div><p class="small">Share this code with the other players.</p><button id="startBtn" class="primary" onclick="startGame()">Start Game</button><div id="lobbyHint" class="small"></div></div>
+<div class="card"><h3>Live Discussion</h3><div id="chat" class="chat"></div><div class="row" style="margin-top:8px"><input id="chatInput" placeholder="Speak to the village..." style="flex:1"><button onclick="sendChat()">Send</button></div></div>
+</div>
+</div>
+</section>
+</main>
+<script>
+const socket=io(); let me=null,state=null,endTimer=null,myRole=null;
+function err(x){document.getElementById('error').textContent=x}
+function createRoom(){const n=document.getElementById('name').value.trim(); if(!n)return err("Enter your name."); socket.emit("create",{name:n})}
+function joinRoom(){const n=document.getElementById('name').value.trim(),c=document.getElementById('joinCode').value.trim(); if(!n||!c)return err("Enter your name and room code."); socket.emit("join",{name:n,code:c})}
+socket.on("connect",()=>me=socket.id);
+socket.on("room",c=>{document.getElementById('landing').classList.add('hidden');document.getElementById('game').classList.remove('hidden');document.getElementById('roomCode').textContent=c;document.getElementById('roomTop').textContent=c});
+socket.on("errorMsg",err);
+socket.on("privateMsg",m=>{addChat("Raven",m.text)});\nsocket.on("privateRole",r=>{myRole=r;render();});
+socket.on("chat",m=>addChat(m.name,m.text));
+function addChat(n,t){const d=document.getElementById('chat');d.innerHTML+=`<p><b>${esc(n)}:</b> ${esc(t)}</p>`;d.scrollTop=d.scrollHeight}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function startGame(){socket.emit("start")}
+function sendChat(){const i=document.getElementById('chatInput');if(i.value.trim())socket.emit("chat",{text:i.value});i.value=""}
+document.getElementById('chatInput').addEventListener('keydown',e=>{if(e.key==="Enter")sendChat()});
+socket.on("state",s=>{state=s;render()});
+function render(){
+document.getElementById('phase').textContent=state.phase.toUpperCase()+" • DAY "+state.day;
+document.getElementById('title').textContent=state.winner?state.winner.team+" WIN":({lobby:"Waiting for players",night:"The Night",day:"Dawn — Investigate",vote:"The Puritan Trial"}[state.phase]||"The Settlement");
+document.getElementById('timer').textContent=state.endsAt?Math.max(0,Math.ceil((state.endsAt-Date.now())/1000))+"s":"";
+clearInterval(endTimer); if(state.endsAt){endTimer=setInterval(()=>{document.getElementById('timer').textContent=Math.max(0,Math.ceil((state.endsAt-Date.now())/1000))+"s"},250)}
+const mep=state.players.find(p=>p.id===me);
+document.getElementById('role').innerHTML=myRole?`<div class="badge">${esc(myRole.roleName)} • ${esc(myRole.faction)}</div><p><b>Ability:</b> ${esc(myRole.ability)} — ${esc(myRole.desc)}</p>`:"";
+document.getElementById('objective').innerHTML=myRole?`<p class="small"><b>Secret objective:</b> ${esc(myRole.objective)}</p>`:"";
+const start=document.getElementById('startBtn');start.classList.toggle('hidden',!(me===state.hostId&&state.phase==="lobby"));
+document.getElementById('lobbyHint').textContent=state.phase==="lobby"?`Players: ${state.players.length}/12 — host needs at least 2 players.`:"";
+document.getElementById('players').innerHTML=state.players.map(p=>`<div class="player ${p.alive?'':'dead'}"><b>${esc(p.name)}</b><br><span class="small">${p.alive?'Alive':'Dead'}${p.rolePublic?' • '+esc(p.rolePublic):''}</span></div>`).join("");
+document.getElementById('evidence').innerHTML=state.evidence.map(x=>`<p>🕯️ ${esc(x)}</p>`).join("")||"<p class='small'>No evidence yet.</p>";
+document.getElementById('log').innerHTML=state.log.map(x=>`<p>${esc(x.text)}</p>`).join("");
+renderActions(mep);
+if(state.winner){document.getElementById('actions').innerHTML=`<div class="card"><h3>${esc(state.winner.team)} victory</h3><p>${esc(state.winner.reason)}</p><p>Thanks for playing The Hollow Bell.</p></div>`}
+}
+function renderActions(p){
+const a=document.getElementById('actions');a.innerHTML="";
+if(!p||!p.alive||state.phase==="lobby")return;
+const living=state.players.filter(x=>x.alive&&x.id!==me);
+const sel=()=>{const s=document.createElement('select');s.id='target';s.innerHTML=living.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");return s}
+if(state.phase==="night" && myRole){
+  const s=sel();
+  if(myRole.role==="alpha" && !myRole.used?.mark){a.append(s); const b=document.createElement('button');b.textContent="Mark";b.onclick=()=>socket.emit("action",{type:"mark",target:s.value});a.append(b);}
+  if(myRole.faction==="Beasts"{a.append(s); const b=document.createElement('button');b.textContent="Hunt";b.onclick=()=>socket.emit("action",{type:"attack",target:s.value});a.append(b);}
+  if(myRole.role==="constable"{a.append(s); const b=document.createElement('button');b.textContent="Investigate";b.onclick=()=>socket.emit("action",{type:"investigate",target:s.value});a.append(b);}
+  if(myRole.role==="bellkeeper"{a.append(s); const b=document.createElement('button');b.textContent="Listen";b.onclick=()=>socket.emit("action",{type:"listen",target:s.value});a.append(b);}
+  if(myRole.role==="raven"{a.append(s); const inp=document.createElement('input');inp.placeholder="Anonymous whisper";const b=document.createElement('button');b.textContent="Whisper";b.onclick=()=>socket.emit("action",{type:"whisper",target:s.value,message:inp.value});a.append(inp,b);}
+  if(myRole.role==="howler"{const b=document.createElement('button');b.textContent="Howl";b.onclick=()=>socket.emit("action",{type:"howl"});a.append(b);}
+}
+if(state.phase==="vote"){
+const s=sel();a.append("Vote to execute: ",s);const b=document.createElement('button');b.textContent="Cast Vote";b.onclick=()=>socket.emit("vote",{target:s.value});a.append(b);
+}
+}
+</script>
+</body>
+</html>
